@@ -1,0 +1,18 @@
+{
+    "image_splitby": 1,
+    "mode": 1,
+    "halo_kernel_1": 20,
+    "halo_kernel_2": 20,
+    "blur_size": 13,
+    "blur_std": 1,
+    "contrast_threshold": 3.0,
+    "contrast_tiles": 8,
+    "size_min": 15,
+    "size_max": 26,
+    "size_steps": 4,
+    "quality_threshold": 0.0007,
+    "max_overlap": 0.35,
+    "cluster_min": 4.0,
+    "eps": 80.0,
+    "circle_thickness": 7
+}
