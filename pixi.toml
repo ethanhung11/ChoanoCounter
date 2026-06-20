@@ -1,0 +1,40 @@
+[workspace]
+authors = ["ehung <ethanhung11@gmail.com>"]
+channels = ["conda-forge"]
+name = "ChoanoCounter"
+platforms = ["osx-arm64"]
+version = "0.1.0"
+
+[tasks]
+
+[tasks.gui]
+cmd = "python src/gui.py"
+description = "Launch the ChoanoCounter graphical interface"
+
+[dependencies]
+python = ">=3.12,<3.14"
+jupyter = ">=1.1.1,<2"
+tqdm = ">=4.67.3,<5"
+memray = ">=1.19.3,<2"
+
+[pypi-dependencies]
+opencv-python = ">=4.13.0.92, <5"
+numpy = ">=2.4.6,<3"
+scikit-image = ">=0.26.0, <0.27"
+matplotlib = ">=3.10.9, <4"
+scikit-learn = ">=1.8.0, <2"
+session-info = ">=1.0.1, <2"
+pyside6 = ">=6.11.1,<7"
+
+[feature.stardist.pypi-dependencies]
+stardist = "*"
+tensorflow = "*"
+scikit-image = "*"
+imageio = "*"
+
+[feature.cellpose.pypi-dependencies]
+cellpose = { version = "*", extras = ["gui"] }
+
+[environments]
+stardist = { features = ["default", "stardist"]}
+cellpose = { features = ["default", "cellpose"]}
