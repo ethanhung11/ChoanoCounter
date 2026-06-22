@@ -64,7 +64,7 @@ class BatchDialog(QDialog):
                 cv2.imwrite(str(outfile), image)
 
                 total_cells = counts["clumped"] + counts["isolated"]
-                percent_rosette = round(counts["clumped"] / total_cells, 2)
+                percent_rosette = round(counts["clumped"] / total_cells, 3)
 
                 writer.writerow([Path(image_path).name, total_cells, counts["clumped"], counts["isolated"], percent_rosette])
                 progress.setValue(i + 1)

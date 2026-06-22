@@ -3,7 +3,7 @@ import cv2
 import json
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QImage, QPixmap
+from PySide6.QtGui import QImage, QPixmap, QGuiApplication
 from PySide6.QtWidgets import (
     QFileDialog,
     QFormLayout,
@@ -21,11 +21,15 @@ from PySide6.QtWidgets import (
     QSplitter,
     QProgressDialog,
     QGroupBox,
+    QDialog,
+    QSizePolicy,
 )
 
+from parameters import Parameters
 from gui_parts.worker import Worker
 from gui_parts.batch_dialog import BatchDialog
-from parameters import Parameters
+from gui_parts.crop_dialog import CropDialog
+from gui_parts.constants import MAX_IMAGE_SIZE
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -33,7 +37,20 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("Automatic Choano Counter")
 
+        # Get the screen geometry
+        screen_geometry = QGuiApplication.primaryScreen().availableGeometry()
+
+        # Set the window size to the maximum available screen size
+        self.setGeometry(screen_geometry)
+
+        # Enable resizing from all edges
+        self.setWindowFlags(Qt.Window | Qt.WindowCloseButtonHint | Qt.CustomizeWindowHint | Qt.WindowMaximizeButtonHint | Qt.WindowMinimizeButtonHint)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
         self.image_path = None
+        self.image = None
+        self.processed_image = None
+        self.showing_processed = False
         self.worker = None
         self.controls = {}
 
@@ -150,10 +167,19 @@ class MainWindow(QMainWindow):
         self.batch_mode_btn.clicked.connect(self.open_batch_mode)
         left.addWidget(self.batch_mode_btn)
 
+        left_widget = QWidget()
+        left_widget.setLayout(left)
+
+
         # ----------------------------
         # IMAGE PANEL
         # ----------------------------
         image_panel_layout = QVBoxLayout()  # Create a vertical layout for the image panel
+
+        self.toggle_btn = QPushButton("")
+        self.toggle_btn.clicked.connect(self.toggle_display)
+        image_panel_layout.addWidget(self.toggle_btn)
+        self.toggle_btn.setEnabled(False)
 
         self.image_label = QLabel("Load an image")
         self.image_label.setAlignment(Qt.AlignCenter)
@@ -162,6 +188,10 @@ class MainWindow(QMainWindow):
         self.load_btn = QPushButton("Choose Image")
         self.load_btn.clicked.connect(self.load_image)
         image_panel_layout.addWidget(self.load_btn)
+
+        self.crop_btn = QPushButton("Crop Image")
+        self.crop_btn.clicked.connect(lambda: self.open_crop_dialog(self.image))
+        image_panel_layout.addWidget(self.crop_btn)
 
         # Create a widget for the image panel and set its layout
         image_panel_widget = QWidget()
@@ -180,18 +210,14 @@ class MainWindow(QMainWindow):
         layout.addWidget(splitter)
 
     def get_parameters(self):
-
         kwargs = {}
 
         for name, info in self.controls.items():
-
             value = info["editor"].value()
-
             if info["type"] is int:
                 value = int(value)
             else:
                 value = float(value)
-
             kwargs[name] = value
 
         return Parameters(**kwargs)
@@ -260,6 +286,7 @@ class MainWindow(QMainWindow):
             f"Loaded preset: {filename}"
         )
 
+
     def load_image(self):
         fname, _ = QFileDialog.getOpenFileName(
             self,
@@ -271,12 +298,44 @@ class MainWindow(QMainWindow):
         if not fname:
             return
 
+        # Assign images
         self.image_path = fname
-
         img = cv2.imread(fname)
 
-        if img is not None:
+        # Check the image size
+        if img is None:
+            QMessageBox.warning(self, "Error", "Failed to load the image.")
+            self.image_path = None
+            return
+
+        # Calculate the image size in bytes
+        height, width, channels = img.shape
+        image_size = height * width * channels
+
+        if image_size > MAX_IMAGE_SIZE:
+            reply = QMessageBox.question(
+                self,
+                "Large Image",
+                f"This image is {round((height * width * channels) / (1024**2),2)}MB/{round((height * width * channels) / (1024**3),2)}GB) uncompressed.\n \
+                This is larger than the recommended max ({MAX_IMAGE_SIZE / 1024**2}MB running at ~15s). Would you like to crop this image?",
+                QMessageBox.Yes | QMessageBox.No,
+            )
+
+            if reply == QMessageBox.Yes:
+                try:
+                    self.open_crop_dialog(img)
+                except:
+                    return
+            else:
+                self.image = img
+                self.show_image(img)
+                self.processed_image = None
+        else:
+            self.image = img
             self.show_image(img)
+            self.processed_image = None
+        
+        self.toggle_btn.setEnabled(False)
 
     def show_image(self, img):
 
@@ -299,12 +358,26 @@ class MainWindow(QMainWindow):
 
         self.image_label.setPixmap(
             pix.scaled(
-                900,
-                900,
+                800,
+                800,
                 Qt.KeepAspectRatio,
                 Qt.SmoothTransformation,
             )
         )
+
+    def open_crop_dialog(self, image):
+
+        dialog = CropDialog(image, self)
+        if dialog.exec() == QDialog.Accepted:
+            cropped_image = dialog.get_cropped_image()
+            if cropped_image is not None:
+                self.image = cropped_image
+                self.processed_image = None
+                self.toggle_btn.setEnabled(False)
+                self.show_image(cropped_image)
+                self.statusBar().showMessage("Cropped image loaded successfully.")
+            else:
+                return ValueError
 
     def reset_defaults(self):
         defaults = self.get_parameters()
@@ -326,11 +399,28 @@ class MainWindow(QMainWindow):
         )
 
     def run_analysis(self):
-        if self.image_path is None:
+        if self.image is None:
             self.statusBar().showMessage(
                 "Please load an image first."
             )
             return
+
+        height, width, channels = self.image.shape
+        size_ratio = height * width * channels / MAX_IMAGE_SIZE
+        if size_ratio > 1.0:
+            runtime = int(round(20 * size_ratio))
+            hours, remainder = divmod(runtime, 3600)
+            minutes, seconds = divmod(remainder, 60)
+            time_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+            reply = QMessageBox.question(
+                self,
+                "Large Image",
+                f"This image is {round(size_ratio,2)})x larger than the recommended size. Estimated time is {time_str}",
+                QMessageBox.Yes | QMessageBox.No,
+            )
+
+            if reply == QMessageBox.No:
+                return
 
         kwargs = {}
 
@@ -365,7 +455,7 @@ class MainWindow(QMainWindow):
 
         # Create the worker thread
         self.worker = Worker(
-            self.image_path,
+            self.image.copy(),
             params,
         )
 
@@ -397,22 +487,19 @@ class MainWindow(QMainWindow):
         # Start the worker thread
         self.worker.start()
 
-    def analysis_finished(
-        self,
-        image,
-        counts,
-    ):
-
+    def analysis_finished(self, image, counts):
         self.run_btn.setEnabled(True)
 
         self.processed_image = image
-
+        self.showing_processed = True
+        self.toggle_btn.setEnabled(True)
+        self.toggle_btn.setText("Show Original")
         self.show_image(image)
-
         self.statusBar().showMessage(
-            f"Isolated={counts['isolated']} | "
-            f"Clumped={counts['clumped']} | "
-            f"Clumps={counts['clumps']}"
+            f"Isolated Cells={counts['isolated']} | "
+            f"Clumped Cells={counts['clumped']} | "
+            f"Clumps={counts['clumps']} | "
+            f"Rosette Ratio={round(counts['clumped'] / (counts['clumped']+counts['isolated']), 3)}"
         )
 
         reply = QMessageBox.question(
@@ -423,12 +510,22 @@ class MainWindow(QMainWindow):
         )
 
         if reply == QMessageBox.Yes:
-            self.save_processed_image()
-    
-    def save_processed_image(self):
-
-        if not hasattr(self, "processed_image"):
+            self.save_processed_image(image)
+            
+    def toggle_display(self):
+        if self.image is None or self.processed_image is None:
             return
+
+        self.showing_processed = not self.showing_processed
+
+        if self.showing_processed:
+            self.show_image(self.processed_image)
+            self.toggle_btn.setText("Show Original")
+        else:
+            self.show_image(self.image)
+            self.toggle_btn.setText("Show Processed")
+
+    def save_processed_image(self, image):
 
         filename, _ = QFileDialog.getSaveFileName(
             self,
@@ -442,7 +539,7 @@ class MainWindow(QMainWindow):
 
         success = cv2.imwrite(
             filename,
-            self.processed_image
+            image
         )
 
         if success:

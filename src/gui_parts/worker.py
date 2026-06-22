@@ -5,9 +5,9 @@ class Worker(QThread):
     progress = Signal(int)
     finished = Signal(object, dict)
 
-    def __init__(self, image_path, params):
+    def __init__(self, image, params):
         super().__init__()
-        self.image_path = image_path
+        self.image = image
         self.params = params
         self.paused = False
 
@@ -17,7 +17,7 @@ class Worker(QThread):
                 self.msleep(100)  # Sleep briefly to avoid busy-waiting
 
         image, counts = process_image(
-            self.image_path,
+            self.image,
             self.params,
             lambda progress: (
                 check_pause(),  # Check if paused before updating progress

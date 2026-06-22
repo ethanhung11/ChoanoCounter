@@ -5,12 +5,13 @@ from skimage.feature import blob_doh
 from sklearn.cluster import DBSCAN
 
 def process_image(
-    image_path,
+    image_or_path,
     params,
     progress_callback=None
 ):
 
-    full_img = cv2.imread(str(image_path))
+    assert isinstance(image_or_path, str) or isinstance(image_or_path, np.ndarray)
+    full_img = cv2.imread(str(image_or_path)) if isinstance(image_or_path, str) else image_or_path
 
     M = full_img.shape[0] // params.image_splitby
     N = full_img.shape[1] // params.image_splitby
