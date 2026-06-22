@@ -2,20 +2,24 @@
 authors = ["ehung <ethanhung11@gmail.com>"]
 channels = ["conda-forge"]
 name = "ChoanoCounter"
-platforms = ["osx-arm64"]
 version = "0.1.0"
+platforms = ["osx-arm64", "win-64"]
 
 [tasks]
 
+[tasks.build]
+cmd = "python -m PyInstaller src/gui.py --windowed --name ChoanoCounter"
+description = "Build the ChoanoCounter Installer."
+
 [tasks.gui]
 cmd = "python src/gui.py"
-description = "Launch the ChoanoCounter graphical interface"
+description = "Launch the ChoanoCounter graphical interface from CLI."
 
 [dependencies]
 python = ">=3.12,<3.14"
+pyinstaller = ">=6.21.0,<7"
 jupyter = ">=1.1.1,<2"
 tqdm = ">=4.67.3,<5"
-memray = ">=1.19.3,<2"
 
 [pypi-dependencies]
 opencv-python = ">=4.13.0.92, <5"
@@ -26,11 +30,17 @@ scikit-learn = ">=1.8.0, <2"
 session-info = ">=1.0.1, <2"
 pyside6 = ">=6.11.1,<7"
 
+[feature.stardist]
+platforms = ["osx-arm64"]
+
 [feature.stardist.pypi-dependencies]
 stardist = "*"
 tensorflow = "*"
 scikit-image = "*"
 imageio = "*"
+
+[feature.cellpose]
+platforms = ["osx-arm64"]
 
 [feature.cellpose.pypi-dependencies]
 cellpose = { version = "*", extras = ["gui"] }

@@ -1,0 +1,44 @@
+name: Build Releases
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+jobs:
+
+  build-macos:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: prefix-dev/setup-pixi@v0
+
+      - run: pixi install
+      - run: pixi run build
+
+      - run: |
+          cd dist
+          zip -r ChoanoCounter-macOS.zip ChoanoCounter.app
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macOS
+          path: dist/ChoanoCounter-macOS.zip
+
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: prefix-dev/setup-pixi@v0
+
+      - run: pixi install
+      - run: pixi run build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Windows
+          path: dist/**
