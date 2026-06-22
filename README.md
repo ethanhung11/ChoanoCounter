@@ -3,6 +3,7 @@
 For all your choano counting needs!
 
 ## Installation
+Head over to [releases](https://github.com/ethanhung11/ChoanoCounter/releases) and download the installer for your platform.
 
 ### Windows
 Download and run:
