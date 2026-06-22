@@ -1,9 +1,10 @@
 from dataclasses import fields
 import cv2
 import json
+from functools import partial
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QImage, QPixmap, QGuiApplication
+from PySide6.QtGui import QImage, QPixmap, QGuiApplication, QFont
 from PySide6.QtWidgets import (
     QFileDialog,
     QFormLayout,
@@ -53,6 +54,7 @@ class MainWindow(QMainWindow):
         self.showing_processed = False
         self.worker = None
         self.controls = {}
+        self.info_dialogs = {}
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -64,15 +66,15 @@ class MainWindow(QMainWindow):
         # ----------------------------
         left = QVBoxLayout()
 
-        self.import_btn = QPushButton("Load Preset")
+        self.import_btn = QPushButton("Load Parameters")
         self.import_btn.clicked.connect(self.load_preset)
         left.addWidget(self.import_btn)
 
-        self.export_btn = QPushButton("Save Preset")
+        self.export_btn = QPushButton("Save Parameters")
         self.export_btn.clicked.connect(self.save_preset)
         left.addWidget(self.export_btn)
 
-        self.reset_btn = QPushButton("Reset Defaults")
+        self.reset_btn = QPushButton("Reset Parameters")
         self.reset_btn.clicked.connect(self.reset_defaults)
         left.addWidget(self.reset_btn)
 
@@ -99,6 +101,20 @@ class MainWindow(QMainWindow):
 
             # Create the slider and editor
             slider = QSlider(Qt.Horizontal)
+            slider.setStyleSheet("""
+                QSlider::groove:horizontal {
+                    height: 6px;
+                    background: #2b2b2b;
+                    border-radius: 3px;
+                }
+                QSlider::handle:horizontal {
+                    width: 10px;
+                    height: 10px;
+                    margin: -2px 0;
+                    border-radius: 5px;
+                    background: #909090;
+                }
+            """)
             slider.setMinimum(0)
             slider.setMaximum(int(round((maximum - minimum) / step)))
             slider.setValue(int(round((default - minimum) / step)))
@@ -116,7 +132,7 @@ class MainWindow(QMainWindow):
                 editor.setDecimals(decimals)
                 editor.setValue(default)
 
-            editor.setMinimumWidth(90)
+            editor.setMinimumWidth(50)
 
             # Connect slider and editor
             def slider_to_editor(pos, editor=editor, minimum=minimum, step=step):
@@ -133,23 +149,53 @@ class MainWindow(QMainWindow):
             slider.valueChanged.connect(slider_to_editor)
             editor.valueChanged.connect(editor_to_slider)
 
+            # Add info button
+            info_btn = QPushButton("i")
+            info_btn.setFixedSize(14, 14)
+            info_btn.setStyleSheet(
+                "border-radius: 7px; "
+                "background-color: #d0d0d0; "
+                "font-weight: bold;"
+            )
+            info_text = meta.get("detail", "").strip()
+            info_btn = None
+            if info_text:
+                self.info_dialogs[f.name] = self.create_info_dialog(label, info_text)
+
+                info_btn = QPushButton("i")
+                info_btn.setFixedSize(14, 14)
+                info_btn.setStyleSheet(
+                    "border-radius: 7px; "
+                    "background-color: #d0d0d0; "
+                    "font-weight: bold;"
+                )
+                info_btn.clicked.connect(
+                    partial(self.toggle_info_dialog, f.name)
+                )
+
             # Add the parameter to its section
             if section_name not in sections:
                 group_box = QGroupBox(section_name)
+                group_box.setStyleSheet(
+                    "QGroupBox { font-size: 14px; font-weight: bold; }"
+                )
                 group_layout = QFormLayout()
                 group_box.setLayout(group_layout)
                 sections[section_name] = group_box
                 form.addWidget(group_box)
 
-            # Create a horizontal layout for the slider and editor
+            label_widget = QLabel(label)
+            label_widget.setStyleSheet("font-size: 8px;")
+
+            # Create layout
             row_layout = QHBoxLayout()
             row_layout.addWidget(slider)
             row_layout.addWidget(editor)
+            if info_btn is not None:
+                row_layout.addWidget(info_btn)
+            sections[section_name].layout().addRow(label_widget, row_layout)
 
-            # Add the row layout to the section's form layout
-            sections[section_name].layout().addRow(label, row_layout)
-
-            # Store the control references
+            # Store control references
             self.controls[f.name] = {
                 "slider": slider,
                 "editor": editor,
@@ -205,7 +251,7 @@ class MainWindow(QMainWindow):
         splitter.addWidget(left_widget)  # Add the left panel
         splitter.addWidget(image_panel_widget)  # Add the image panel
 
-        splitter.setSizes([400, 1200])
+        splitter.setSizes([450, 1200])
 
         layout.addWidget(splitter)
 
@@ -285,6 +331,38 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(
             f"Loaded preset: {filename}"
         )
+
+    def create_info_dialog(self, title, text):
+        dialog = QDialog(self)
+        dialog.setWindowTitle(title)
+        dialog.setModal(False)
+        dialog.setWindowFlags(dialog.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+        dialog.setFixedSize(320, 160)
+
+        layout = QVBoxLayout(dialog)
+        layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+
+        label = QLabel(text)
+        label.setWordWrap(True)
+        label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+        layout.addWidget(label)
+        return dialog
+
+    def toggle_info_dialog(self, name):
+        dialog = self.info_dialogs.get(name)
+        if dialog is None:
+            return
+
+        if dialog.isVisible():
+            dialog.close()
+            return
+
+        frame = self.frameGeometry()
+        center = frame.center()
+        geom = dialog.frameGeometry()
+        geom.moveCenter(center)
+        dialog.move(geom.topLeft())
+        dialog.show()
 
 
     def load_image(self):
@@ -408,83 +486,83 @@ class MainWindow(QMainWindow):
         height, width, channels = self.image.shape
         size_ratio = height * width * channels / MAX_IMAGE_SIZE
         if size_ratio > 1.0:
-            runtime = int(round(20 * size_ratio))
+            runtime = int(round(15 * size_ratio**2))
             hours, remainder = divmod(runtime, 3600)
             minutes, seconds = divmod(remainder, 60)
             time_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
             reply = QMessageBox.question(
                 self,
                 "Large Image",
-                f"This image is {round(size_ratio,2)})x larger than the recommended size. Estimated time is {time_str}",
+                f"This image is {round(size_ratio,2)}x larger than the recommended size with quadratic time complexity. Estimated time is {time_str}.",
                 QMessageBox.Yes | QMessageBox.No,
             )
-
             if reply == QMessageBox.No:
                 return
 
         kwargs = {}
-
         for name, info in self.controls.items():
             editor = info["editor"]
             field_type = info["type"]
-
             value = editor.value()
-
             if field_type is int:
                 value = int(value)
             else:
                 value = float(value)
-
             kwargs[name] = value
-
         params = self.get_parameters()
 
         self.run_btn.setEnabled(False)
 
-        # Create a QProgressDialog
+        # Create progress bar
         progress_dialog = QProgressDialog(
             "Processing image...",
-            "Pause",
+            "Cancel",
             0,
             100,
-            self
+            self,
         )
         progress_dialog.setWindowTitle("Processing")
         progress_dialog.setWindowModality(Qt.WindowModal)
+        progress_dialog.setAutoClose(False)
+        progress_dialog.setAutoReset(False)
         progress_dialog.setValue(0)
 
-        # Create the worker thread
+        pause_button = QPushButton("Pause")
+        progress_dialog.layout().addWidget(pause_button)
+
+        # Create worker
         self.worker = Worker(
             self.image.copy(),
             params,
         )
+        self.worker.progress.connect(progress_dialog.setValue) # update worker progress
 
-        # Add a paused flag to the worker
-        self.worker.paused = False
-
-        # Update the QProgressDialog with the worker's progress
-        self.worker.progress.connect(progress_dialog.setValue)
-
-        # Handle the pause/resume button in QProgressDialog
+        # Pause/Resume & Cancel
         def toggle_pause():
-            if self.worker.paused:
-                self.worker.paused = False
-                progress_dialog.setLabelText("Processing image...")
-                progress_dialog.setCancelButtonText("Pause")
-            else:
-                self.worker.paused = True
+            if self.worker._pause_event.is_set():
+                self.worker.pause()
+                pause_button.setText("Resume")
                 progress_dialog.setLabelText("Paused. Click Resume to continue.")
-                progress_dialog.setCancelButtonText("Resume")
+            else:
+                self.worker.resume()
+                pause_button.setText("Pause")
+                progress_dialog.setLabelText("Processing image...")
+        pause_button.clicked.connect(toggle_pause)
 
-        progress_dialog.canceled.connect(toggle_pause)
+        def cancel_processing():
+            self.worker.resume()
+            self.worker.requestInterruption()
+            progress_dialog.close()
+            self.run_btn.setEnabled(True)
+        progress_dialog.canceled.connect(cancel_processing)
 
-        # Handle when the worker finishes
+        # Completion
         self.worker.finished.connect(
             lambda image, counts: self.analysis_finished(image, counts)
         )
         self.worker.finished.connect(progress_dialog.close)
 
-        # Start the worker thread
+        # Run
         self.worker.start()
 
     def analysis_finished(self, image, counts):

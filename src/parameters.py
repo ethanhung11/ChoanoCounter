@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+import os
 
 @dataclass
 class Parameters:
@@ -10,7 +11,9 @@ class Parameters:
             "max": 2,
             "step": 1,
             "label": "Mode",
-            "section": "Image Processing"
+            "section": "Image Processing",
+            "detail" : """
+            """,
         }
     )
 
@@ -18,10 +21,11 @@ class Parameters:
         default=1,
         metadata={
             "min": 1,
-            "max": 5,
+            "max": 8,
             "step": 1,
             "label": "Image Tiling",
-            "section": "Image Processing"
+            "section": "Image Processing",
+            "detail" : f"""Splits the image into equally sized (e.g. "2" creates 4 tiles in 2x2 arrangement). This can decrease runtime by min(cores,tiles)/tiles, at the cost of border artifacts.\nYou have {os.cpu_count()} cores.""",
         }
     )
     
@@ -33,7 +37,8 @@ class Parameters:
             "max": 50,
             "step": 1,
             "label": "Halo Kernel (x)",
-            "section": "Image Processing"
+            "section": "Image Processing",
+            "detail" : """The width of the elipse kernel. Larger values suppress noise/illumination artifact (like halos) but can erase clumped/small objects.""",
         }
     )
 
@@ -44,7 +49,8 @@ class Parameters:
             "max": 50,
             "step": 1,
             "label": "Halo Kernel (y)",
-            "section": "Image Processing"
+            "section": "Image Processing",
+            "detail" : """The height of the ellipse kernel. Larger values are better able to remove illumination artifact (like halos), but can merged clumped objects and erase small cells.""",
         }
     )
 
@@ -55,7 +61,8 @@ class Parameters:
             "max": 65,
             "step": 2,
             "label": "Blur Size",
-            "section": "Image Processing"
+            "section": "Image Processing",
+            "detail" : """The kernel size for Gaussian blur. Larger values consider pixels further away in the blurring. Must be odd as the center pixel must be centered (e.g. 1, 2, 3 px in all directions)""",
         }
     )
 
@@ -66,7 +73,8 @@ class Parameters:
             "max": 30.0,
             "step": 0.1,
             "label": "Blur σ",
-            "section": "Image Processing"
+            "section": "Image Processing",
+            "detail" :  """The standard deviation for Gaussian blur. Larger values smooth the image more to remove noise but weaken sharp boundaries.""",
         }
     )
 
@@ -77,7 +85,8 @@ class Parameters:
             "max": 10,
             "step": 1,
             "label": "Contrast Threshold",
-            "section": "Image Processing"
+            "section": "Image Processing",
+            "detail" : """The CLAHE contrast clip limit. Lower values lead to aggressive contrast. Contrast helps identify faint objects but can amplify noise.""",
         }
     )
 
@@ -88,7 +97,8 @@ class Parameters:
             "max": 40,
             "step": 1,
             "label": "Contrast Tiles",
-            "section": "Image Processing"
+            "section": "Image Processing",
+            "detail" : """The number of tiles CLAHE uses. More tiles causes more local contrast adjustment. """,
         }
     )
 
@@ -98,8 +108,9 @@ class Parameters:
             "min": 1,
             "max": 50,
             "step": 1,
-            "label": "Size Min",
+            "label": "Blob Min",
             "section": "Object Identification",
+            "detail" : "",
         }
     )
 
@@ -109,8 +120,9 @@ class Parameters:
             "min": 1,
             "max": 50,
             "step": 1,
-            "label": "Size Max",
+            "label": "Blob Max",
             "section": "Object Identification",
+            "detail" : "",
         }
     )
 
@@ -120,8 +132,9 @@ class Parameters:
             "min": 1,
             "max": 20,
             "step": 1,
-            "label": "Size Steps",
+            "label": "Blob Steps",
             "section": "Object Identification",
+            "detail" : """The number size steps to check for blobs between min/max range. Larger values improves identification at different size scales, but is accordingly slower and can increase false detections.""",
         }
     )
 
@@ -131,8 +144,9 @@ class Parameters:
             "min": 0.0001,
             "max": 0.0100,
             "step": 0.0001,
-            "label": "Quality Threshold",
+            "label": "Blob Quality Threshold",
             "section": "Object Identification",
+            "detail" : """The parameter controlling the quality of the blob identification. Larger values leave only the most distinct blobs, but may ignore faint or oddly shaped cells.""",
         }
     )
 
@@ -142,8 +156,9 @@ class Parameters:
             "min": 0.01,
             "max": 1.00,
             "step": 0.01,
-            "label": "Max Overlap",
+            "label": "Blob Max Overlap",
             "section": "Object Identification",
+            "detail" : """The maximum overlap two identified blobs can have before the smaller one is erased. Smaller values identify true cells better but significantly increase duplication errors of singlets.""",
         }
     )
 
@@ -153,8 +168,9 @@ class Parameters:
             "min": 2,
             "max": 6,
             "step": 1,
-            "label": "Group Threshold",
+            "label": "Cluster Group Minimum",
             "section": "Object Identification",
+            "detail" : """Defaults to 4 for rosettes. Available for testing.""",
         }
     )
 
@@ -164,8 +180,9 @@ class Parameters:
             "min": 1,
             "max": 160,
             "step": 1,
-            "label": "DBSCAN Epsilon (ε)",
+            "label": "Cluster Range",
             "section": "Object Identification",
+            "detail" : """DBSCAN's epsilon (ε), corresponding to the maximum radius to consider clumps. Smaller values group more discriminately but suffer if clump identification is poor.""",
         }
     )
 
@@ -177,5 +194,6 @@ class Parameters:
             "step": 1,
             "label": "Output Label Thickness",
             "section": "Output Settings",
+            "detail" : """Thickness of the colored circles identifying  cells in the output image.""",
         }
     )

@@ -1,3 +1,4 @@
+import threading
 from PySide6.QtCore import QThread, Signal
 from processing import process_image
 
@@ -9,19 +10,33 @@ class Worker(QThread):
         super().__init__()
         self.image = image
         self.params = params
-        self.paused = False
+        self._pause_event = threading.Event()
+        self._pause_event.set()
+
+    def pause(self):
+        self._pause_event.clear()
+
+    def resume(self):
+        self._pause_event.set()
+
+    def wait_if_paused(self):
+        while not self._pause_event.is_set():
+            self.msleep(100)
 
     def run(self):
-        def check_pause():
-            while self.paused:
-                self.msleep(100)  # Sleep briefly to avoid busy-waiting
+        def progress_callback(progress):
+            self.wait_if_paused()
+            if self.isInterruptionRequested():
+                raise InterruptedError
+            self.progress.emit(progress)
 
-        image, counts = process_image(
-            self.image,
-            self.params,
-            lambda progress: (
-                check_pause(),  # Check if paused before updating progress
-                self.progress.emit(progress)
-            )[1],  # Emit progress after checking pause
-        )
+        try:
+            image, counts = process_image(
+                self.image,
+                self.params,
+                progress_callback,
+            )
+        except InterruptedError:
+            return
+
         self.finished.emit(image, counts)
