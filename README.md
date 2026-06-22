@@ -19,4 +19,5 @@ If macOS warns that the app is from an unidentified developer:
 This may not work on newer MacOS versions. If so,
 1. go to System Settings > Privacy & Security, and scroll to the Security section.
 2. Click "Open Anyway" next to "'ChoanoCounter' was blocked to protect your Mac."
+
 See [this YouTube video](https://www.youtube.com/watch?v=biIvAM94b98) for more detail.
