@@ -5,40 +5,79 @@ on:
   release:
     types: [published]
 
+permissions:
+  contents: write
+
 jobs:
 
   build-macos:
     runs-on: macos-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: prefix-dev/setup-pixi@v0
+      - name: Setup Pixi
+        uses: prefix-dev/setup-pixi@v0
 
-      - run: pixi install
-      - run: pixi run build
+      - name: Install dependencies
+        run: pixi install
 
-      - run: |
+      - name: Build application
+        run: pixi run build
+
+      - name: Package macOS app
+        shell: bash
+        run: |
+          VERSION=${GITHUB_REF_NAME}
           cd dist
-          zip -r ChoanoCounter-macOS.zip ChoanoCounter.app
+          zip -r "ChoanoCounter-${VERSION}-macOS.zip" ChoanoCounter.app
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: macOS
-          path: dist/ChoanoCounter-macOS.zip
+          name: ChoanoCounter-macOS
+          path: dist/ChoanoCounter-*-macOS.zip
+
+      - name: Upload macOS release asset
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/ChoanoCounter-*-macOS.zip
 
   build-windows:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: prefix-dev/setup-pixi@v0
+      - name: Setup Pixi
+        uses: prefix-dev/setup-pixi@v0
 
-      - run: pixi install
-      - run: pixi run build
+      - name: Install dependencies
+        run: pixi install
 
-      - uses: actions/upload-artifact@v4
+      - name: Build application
+        run: pixi run build
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress
+      
+      - name: Build installer
+        env:
+          APP_VERSION: ${{ github.ref_name }}
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: Windows
-          path: dist/**
+          name: ChoanoCounter-Windows
+          path: Output/*.exe
+
+      - name: Upload Windows release asset
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Output/*.exe
