@@ -12,8 +12,8 @@ class Parameters:
             "step": 1,
             "label": "Mode",
             "section": "Image Processing",
-            "detail" : """
-            """,
+            "detail" : "Mode 1: \n \
+                        Mode 2:",
         }
     )
 
@@ -25,13 +25,13 @@ class Parameters:
             "step": 1,
             "label": "Image Tiling",
             "section": "Image Processing",
-            "detail" : f"""Splits the image into equally sized (e.g. "2" creates 4 tiles in 2x2 arrangement). This can decrease runtime by min(cores,tiles)/tiles, at the cost of border artifacts.\nYou have {os.cpu_count()} cores.""",
+            "detail" : f"""Splits the image into equally sized (e.g. "2" creates 4 tiles in 2x2 arrangement). This can decrease runtime by [ min(cores, tiles) / tiles ], at the cost of border artifacts.\nYou have {os.cpu_count()} cores.""",
         }
     )
     
 
     halo_kernel_1: int = field(
-        default=20,
+        default=15,
         metadata={
             "min": 1,
             "max": 50,
@@ -43,7 +43,7 @@ class Parameters:
     )
 
     halo_kernel_2: int = field(
-        default=20,
+        default=15,
         metadata={
             "min": 1,
             "max": 50,
@@ -55,7 +55,7 @@ class Parameters:
     )
 
     blur_size: int = field(
-        default=25,
+        default=5,
         metadata={
             "min": 1,
             "max": 65,
@@ -67,7 +67,7 @@ class Parameters:
     )
 
     blur_std: int = field(
-        default=5,
+        default=1,
         metadata={
             "min": 1.0,
             "max": 30.0,
@@ -79,7 +79,7 @@ class Parameters:
     )
 
     contrast_threshold: float = field(
-        default=2,
+        default=1,
         metadata={
             "min": 1,
             "max": 10,
@@ -98,12 +98,12 @@ class Parameters:
             "step": 1,
             "label": "Contrast Tiles",
             "section": "Image Processing",
-            "detail" : """The number of tiles CLAHE uses. More tiles causes more local contrast adjustment. """,
+            "detail" : """The number of tile splits CLAHE uses, per dimension. More tiles leads to more local contrast adjustment.""",
         }
     )
 
     size_min: int = field(
-        default=14,
+        default=15,
         metadata={
             "min": 1,
             "max": 50,
@@ -115,7 +115,7 @@ class Parameters:
     )
 
     size_max: int = field(
-        default=25,
+        default=30,
         metadata={
             "min": 1,
             "max": 50,
@@ -127,19 +127,19 @@ class Parameters:
     )
 
     size_steps: int = field(
-        default=8,
+        default=3,
         metadata={
             "min": 1,
             "max": 20,
             "step": 1,
             "label": "Blob Steps",
             "section": "Object Identification",
-            "detail" : """The number size steps to check for blobs between min/max range. Larger values improves identification at different size scales, but is accordingly slower and can increase false detections.""",
+            "detail" : """The number size steps to check for blobs between min/max range. Larger values improves identification at different size scales, but is slower and can increase false detections.""",
         }
     )
 
     quality_threshold: float = field(
-        default=0.0009,
+        default=0.0040,
         metadata={
             "min": 0.0001,
             "max": 0.0100,
@@ -151,7 +151,7 @@ class Parameters:
     )
 
     max_overlap: float = field(
-        default=0.35,
+        default=0.6,
         metadata={
             "min": 0.01,
             "max": 1.00,
@@ -187,13 +187,13 @@ class Parameters:
     )
 
     circle_thickness: int = field(
-        default=3,
+        default=5,
         metadata={
             "min": 1,
             "max": 15,
             "step": 1,
             "label": "Output Label Thickness",
             "section": "Output Settings",
-            "detail" : """Thickness of the colored circles identifying  cells in the output image.""",
+            "detail" : """Thickness of the colored circles identifying cells in the output image.""",
         }
     )

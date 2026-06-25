@@ -1,6 +1,7 @@
 # custom
 outs/
 plot/
+data/
 
 # pixi environments
 .pixi/*

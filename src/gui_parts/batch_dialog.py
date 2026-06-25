@@ -30,19 +30,22 @@ class BatchDialog(QDialog):
 
         self.choose_output_btn = QPushButton("Choose Output Folder")
         self.choose_output_btn.clicked.connect(self.choose_output)
-        layout.addWidget(self.choose_output_btn)
         self.output_checkbox = QCheckBox()
         self.output_checkbox.setEnabled(False)
         self.output_checkbox.setFixedWidth(24)
-        layout.addWidget(self.output_checkbox)
         output_row = QHBoxLayout()
         output_row.addWidget(self.choose_output_btn, 5)
         output_row.addWidget(self.output_checkbox, 0)
         layout.addLayout(output_row)
-
-        self.run_btn = QPushButton("Run Batch Mode")
-        self.run_btn.clicked.connect(self.run_batch)
-        layout.addWidget(self.run_btn)
+        
+        self.run_btn = QPushButton("Run Batch")
+        self.run_btn.clicked.connect(self.batch_run)
+        self.run_btn_convert = QPushButton("Run Batch Conversion")
+        self.run_btn_convert.clicked.connect(self.batch_conversion)
+        output_row = QHBoxLayout()
+        output_row.addWidget(self.run_btn)
+        output_row.addWidget(self.run_btn_convert)
+        layout.addLayout(output_row)
 
     def choose_images(self):
         files, _ = QFileDialog.getOpenFileNames(self, "Select Images", "", "Images (*.png *.jpg *.jpeg *.tif *.tiff *.bmp)")
@@ -54,7 +57,38 @@ class BatchDialog(QDialog):
         self.output_dir = folder
         self.output_checkbox.setChecked(bool(folder))
 
-    def run_batch(self):
+    def batch_conversion(self):
+        if not self.image_paths:
+            QMessageBox.warning(self, "No Images", "Please select images.")
+            return
+
+        if not self.output_dir:
+            QMessageBox.warning(self, "No Output Folder", "Please select an output folder.")
+            return
+        
+        progress = QProgressDialog("Processing images...", None, 0, len(self.image_paths), self)
+        progress.setWindowTitle("Batch Processing")
+        progress.setCancelButton(None)
+        progress.show()
+
+
+        for i, image_path in enumerate(self.image_paths):
+            image, counts = process_image(image_path, self.params)
+            stem = Path(image_path).stem
+            outfile = Path(self.output_dir) / f"{stem}_processed.png"
+            cv2.imwrite(str(outfile), image)
+
+            total_cells = counts["clumped"] + counts["isolated"]
+            percent_rosette = round(counts["clumped"] / total_cells, 3)
+            
+            progress.setValue(i + 1)
+            QApplication.processEvents()
+
+        progress.close()
+        QMessageBox.information(self, "Complete", "Counting complete!")
+        self.accept()
+
+    def batch_run(self):
         if not self.image_paths:
             QMessageBox.warning(self, "No Images", "Please select images.")
             return

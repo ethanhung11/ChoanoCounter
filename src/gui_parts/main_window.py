@@ -2,9 +2,11 @@ from dataclasses import fields
 import cv2
 import json
 from functools import partial
+from pathlib import Path
+import math
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QImage, QPixmap, QGuiApplication, QFont
+from PySide6.QtGui import QImage, QPixmap, QGuiApplication
 from PySide6.QtWidgets import (
     QFileDialog,
     QFormLayout,
@@ -24,6 +26,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QDialog,
     QSizePolicy,
+    QInputDialog,
 )
 
 from parameters import Parameters
@@ -31,6 +34,7 @@ from gui_parts.worker import Worker
 from gui_parts.batch_dialog import BatchDialog
 from gui_parts.crop_dialog import CropDialog
 from gui_parts.constants import MAX_IMAGE_SIZE
+from utils import OpenZip, nd2_converter
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -50,11 +54,13 @@ class MainWindow(QMainWindow):
 
         self.image_path = None
         self.image = None
+        self.image_stack = None
         self.processed_image = None
         self.showing_processed = False
         self.worker = None
         self.controls = {}
         self.info_dialogs = {}
+        self.current_zoom = 1.0
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -227,16 +233,34 @@ class MainWindow(QMainWindow):
         image_panel_layout.addWidget(self.toggle_btn)
         self.toggle_btn.setEnabled(False)
 
+        self.zoom_label = QLabel("Zoom: 100%")
+        self.zoom_label.setAlignment(Qt.AlignCenter)
+        image_panel_layout.addWidget(self.zoom_label)
+
+        self.zoom_slider = QSlider(Qt.Horizontal)
+        self.zoom_slider.setRange(10, 400)
+        self.zoom_slider.setValue(100)
+        self.zoom_slider.setTickInterval(10)
+        self.zoom_slider.setTickPosition(QSlider.TicksBelow)
+        self.zoom_slider.setEnabled(False)
+        self.zoom_slider.valueChanged.connect(self.update_zoom)
+        image_panel_layout.addWidget(self.zoom_slider)
+
         self.image_label = QLabel("Load an image")
         self.image_label.setAlignment(Qt.AlignCenter)
-        image_panel_layout.addWidget(self.image_label)
+        self.image_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.image_scroll = QScrollArea()
+        self.image_scroll.setWidgetResizable(True)
+        self.image_scroll.setMaximumSize(820, 820)
+        self.image_scroll.setWidget(self.image_label)
+        image_panel_layout.addWidget(self.image_scroll)
 
         self.load_btn = QPushButton("Choose Image")
         self.load_btn.clicked.connect(self.load_image)
         image_panel_layout.addWidget(self.load_btn)
 
         self.crop_btn = QPushButton("Crop Image")
-        self.crop_btn.clicked.connect(lambda: self.open_crop_dialog(self.image))
+        self.crop_btn.clicked.connect(self.open_crop_dialog)
         image_panel_layout.addWidget(self.crop_btn)
 
         # Create a widget for the image panel and set its layout
@@ -337,7 +361,7 @@ class MainWindow(QMainWindow):
         dialog.setWindowTitle(title)
         dialog.setModal(False)
         dialog.setWindowFlags(dialog.windowFlags() & ~Qt.WindowContextHelpButtonHint)
-        dialog.setFixedSize(320, 160)
+        dialog.setFixedSize(400, 160)
 
         layout = QVBoxLayout(dialog)
         layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
@@ -364,98 +388,117 @@ class MainWindow(QMainWindow):
         dialog.move(geom.topLeft())
         dialog.show()
 
-
     def load_image(self):
         fname, _ = QFileDialog.getOpenFileName(
             self,
             "Select Image",
             "",
-            "Images (*.png *.jpg *.jpeg *.tif *.tiff *.bmp)",
+            "Images (*.png *.jpg *.jpeg *.tif *.tiff *.bmp *.nd2 *.zip)",
         )
 
         if not fname:
             return
 
-        # Assign images
         self.image_path = fname
-        img = cv2.imread(fname)
+        
+        if Path(fname).suffix == ".nd2":
+            reply = QMessageBox.question(
+                self,
+                "nd2 File Found",
+                f"This is an nd2 file. While not directly compatible, it may be converted into an zip with jpg images. Would you like to convert this file?",
+                QMessageBox.Yes | QMessageBox.No,
+            )
 
-        # Check the image size
-        if img is None:
-            QMessageBox.warning(self, "Error", "Failed to load the image.")
-            self.image_path = None
-            return
 
-        # Calculate the image size in bytes
-        height, width, channels = img.shape
-        image_size = height * width * channels
+            if reply == QMessageBox.Yes:
+                try:
+                    compression, ok = QInputDialog.getInt(
+                        self, "JPG Compression", "Enter a value for JPG quality (0-100):", 80, 0, 100, 1
+                    )
+                    nd2_converter(fname, compression)
+                    QMessageBox.information(self, "Success", f"Successfully converted {fname}.")
+                    self.image_path = str(Path(fname).with_suffix('.zip'))
+                except Exception as e:
+                    print(f"Unexpected error: {e}")
+                    self.image_path = None
+                    return
+            else:
+                self.image_path = None
+                return
+            
+        if Path(fname).suffix == ".zip":
+            try:
+                self.image_stack, image_size = OpenZip(str(fname))
+                image_size /= len(self.image_stack)
+                self.image = self.image_stack[1]
+            except:
+                QMessageBox.warning(self, "Error", "Failed to load the image.")
+                self.image_path = None
+                return
+
+        else: # single image
+            try:
+                self.image = cv2.imread(fname)
+                image_size = math.prod(self.image) 
+            except:
+                QMessageBox.warning(self, "Error", "Failed to load the image.")
+                self.image_path = None
+                return
 
         if image_size > MAX_IMAGE_SIZE:
             reply = QMessageBox.question(
                 self,
                 "Large Image",
-                f"This image is {round((height * width * channels) / (1024**2),2)}MB/{round((height * width * channels) / (1024**3),2)}GB) uncompressed.\n \
+                f"The{" average" if self.image_stack is not None else None} image size is {round(image_size / (1024**2),2)}MB/{round(image_size / (1024**3),2)}GB uncompressed.\n \
                 This is larger than the recommended max ({MAX_IMAGE_SIZE / 1024**2}MB running at ~15s). Would you like to crop this image?",
                 QMessageBox.Yes | QMessageBox.No,
             )
 
             if reply == QMessageBox.Yes:
                 try:
-                    self.open_crop_dialog(img)
+                    self.open_crop_dialog()
                 except:
+                    self.image_stack, self.image, self.image_path = None, None, None
                     return
-            else:
-                self.image = img
-                self.show_image(img)
-                self.processed_image = None
-        else:
-            self.image = img
-            self.show_image(img)
-            self.processed_image = None
         
+        self.show_image(self.show_image(self.image))
+        self.processed_image = None
         self.toggle_btn.setEnabled(False)
+        self.zoom_slider.setEnabled(True)
 
-    def show_image(self, img):
-
-        rgb = cv2.cvtColor(
-            img,
-            cv2.COLOR_BGR2RGB,
-        )
-
+    def show_image(self, image):
+        rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         h, w, ch = rgb.shape
-
-        qimg = QImage(
-            rgb.data,
-            w,
-            h,
-            ch * w,
-            QImage.Format_RGB888,
-        )
-
+        qimg = QImage(rgb.data, w, h, ch * w, QImage.Format_RGB888)
         pix = QPixmap.fromImage(qimg)
 
-        self.image_label.setPixmap(
-            pix.scaled(
-                800,
-                800,
-                Qt.KeepAspectRatio,
-                Qt.SmoothTransformation,
-            )
+        zoomed = pix.scaled(
+            int(800 * self.current_zoom),
+            int(800 * self.current_zoom),
+            Qt.KeepAspectRatio,
+            Qt.SmoothTransformation,
         )
 
-    def open_crop_dialog(self, image):
+        self.image_label.setPixmap(zoomed)
+        self.image_label.setMinimumSize(zoomed.size())
 
-        dialog = CropDialog(image, self)
+    def update_zoom(self, value):
+        self.current_zoom = value / 100.0
+        self.zoom_label.setText(f"Zoom: {value}%")
+        self.show_image(self.processed_image if self.showing_processed else self.image)
+
+    def open_crop_dialog(self):
+
+        dialog = CropDialog(self.image, self.image_stack, self)
         if dialog.exec() == QDialog.Accepted:
-            cropped_image = dialog.get_cropped_image()
+            cropped_image, cropped_image_stack = dialog.get_cropped_image()
             if cropped_image is not None:
                 self.image = cropped_image
+                self.image_stack = cropped_image_stack
                 self.processed_image = None
                 self.toggle_btn.setEnabled(False)
                 self.show_image(cropped_image)
                 self.statusBar().showMessage("Cropped image loaded successfully.")
-            else:
-                return ValueError
 
     def reset_defaults(self):
         defaults = self.get_parameters()
@@ -527,9 +570,6 @@ class MainWindow(QMainWindow):
         progress_dialog.setAutoReset(False)
         progress_dialog.setValue(0)
 
-        pause_button = QPushButton("Pause")
-        progress_dialog.layout().addWidget(pause_button)
-
         # Create worker
         self.worker = Worker(
             self.image.copy(),
@@ -537,21 +577,8 @@ class MainWindow(QMainWindow):
         )
         self.worker.progress.connect(progress_dialog.setValue) # update worker progress
 
-        # Pause/Resume & Cancel
-        def toggle_pause():
-            if self.worker._pause_event.is_set():
-                self.worker.pause()
-                pause_button.setText("Resume")
-                progress_dialog.setLabelText("Paused. Click Resume to continue.")
-            else:
-                self.worker.resume()
-                pause_button.setText("Pause")
-                progress_dialog.setLabelText("Processing image...")
-        pause_button.clicked.connect(toggle_pause)
-
+        # Cancel
         def cancel_processing():
-            self.worker.resume()
-            self.worker.requestInterruption()
             progress_dialog.close()
             self.run_btn.setEnabled(True)
         progress_dialog.canceled.connect(cancel_processing)
@@ -598,18 +625,18 @@ class MainWindow(QMainWindow):
 
         if self.showing_processed:
             self.show_image(self.processed_image)
-            self.toggle_btn.setText("Show Original")
+            self.toggle_btn.setText("Toggle View: Show Original")
         else:
             self.show_image(self.image)
-            self.toggle_btn.setText("Show Processed")
+            self.toggle_btn.setText("Toggle View: Show Processed")
 
     def save_processed_image(self, image):
 
         filename, _ = QFileDialog.getSaveFileName(
             self,
             "Save Processed Image",
-            "choano_counter_result.png",
-            "PNG (*.png);;JPEG (*.jpg *.jpeg);;TIFF (*.tif *.tiff)"
+            "choano_counter_result.jpg",
+            "JPEG (*.jpg *.jpeg);;PNG (*.png);;TIFF (*.tif *.tiff)"
         )
 
         if not filename:

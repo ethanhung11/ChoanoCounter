@@ -10,14 +10,15 @@ platforms = ["osx-arm64", "win-64"]
 [tasks.build]
 cmd = "python -m PyInstaller src/gui.py --windowed --name ChoanoCounter"
 description = "Build the ChoanoCounter Installer."
+default-environment = "main"
 
 [tasks.gui]
 cmd = "python src/gui.py"
 description = "Launch the ChoanoCounter graphical interface from CLI."
+default-environment = "main"
 
 [dependencies]
 python = ">=3.12,<3.14"
-pyinstaller = ">=6.21.0,<7"
 jupyter = ">=1.1.1,<2"
 tqdm = ">=4.67.3,<5"
 
@@ -29,6 +30,11 @@ matplotlib = ">=3.10.9, <4"
 scikit-learn = ">=1.8.0, <2"
 session-info = ">=1.0.1, <2"
 pyside6 = ">=6.11.1,<7"
+
+[feature.main.pypi-dependencies]
+pyinstaller = ">=6.21.0, <7"
+nd2 = ">=0.11.3, <0.12"
+pillow = ">=12.2.0, <13"
 
 [feature.stardist]
 platforms = ["osx-arm64"]
@@ -42,9 +48,13 @@ imageio = "*"
 [feature.cellpose]
 platforms = ["osx-arm64"]
 
+[feature.cellpose.dependencies]
+python = "*"
+
 [feature.cellpose.pypi-dependencies]
 cellpose = { version = "*", extras = ["gui"] }
 
 [environments]
 stardist = { features = ["default", "stardist"]}
 cellpose = { features = ["default", "cellpose"]}
+main = { features = ["default", "main"]}

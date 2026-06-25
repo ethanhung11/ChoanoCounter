@@ -83,12 +83,14 @@ class ResizableRectItem(QGraphicsRectItem):
 
 
 class CropDialog(QDialog):
-    def __init__(self, image, parent=None):
+    def __init__(self, image, image_stack=None, parent=None):
         super().__init__(parent)
 
         self.setWindowTitle("Crop Image")
         self.original_image = image
+        self.original_image_stack = image_stack
         self.cropped_image = None
+        self.cropped_image_stack = None
 
         self.original_height, self.original_width, self.channels = self.original_image.shape
         self.original_size = self.original_height * self.original_width * self.channels
@@ -179,7 +181,15 @@ class CropDialog(QDialog):
             original_x : original_x + original_w,
         ]
 
+        if self.original_image_stack:
+            self.cropped_image_stack = [
+                img[
+                    original_y : original_y + original_h,
+                    original_x : original_x + original_w,
+                ]
+                for img in self.original_image_stack]
+
         self.accept()
 
     def get_cropped_image(self):
-        return self.cropped_image
+        return self.cropped_image, self.cropped_image_stack

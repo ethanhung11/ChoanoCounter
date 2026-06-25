@@ -1,8 +1,14 @@
-from collections import Counter
-import cv2
+import os
 import numpy as np
+from pathlib import Path
+from collections import Counter
+import shutil
+import zipfile
+import cv2
+from PIL import Image
 from skimage.feature import blob_doh
 from sklearn.cluster import DBSCAN
+from utils import grayscale
 
 def process_image(
     image_or_path,
@@ -78,10 +84,7 @@ def process_image(
                     dtype=cv2.CV_8U,
                 )
 
-                cleaned_img = cv2.cvtColor(
-                    cleaned_img,
-                    cv2.COLOR_BGR2GRAY,
-                )
+                cleaned_img = grayscale(cleaned_img)
 
             elif params.mode == 2:
 
@@ -114,10 +117,7 @@ def process_image(
                     dtype=cv2.CV_8U,
                 )
 
-                cleaned_img = cv2.cvtColor(
-                    cleaned_img,
-                    cv2.COLOR_BGR2GRAY,
-                )
+                cleaned_img = grayscale(cleaned_img)
 
                 clahe = cv2.createCLAHE(
                     clipLimit=params.contrast_threshold,
